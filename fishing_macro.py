@@ -57,47 +57,53 @@ class FlatButton(tk.Canvas):
                  width=180, height=36, radius=8, **kw):
         super().__init__(master, width=width, height=height,
                          bg=PANEL, bd=0, highlightthickness=0, **kw)
-        self._bg     = bg
-        self._hover  = hover
-        self._fg     = fg
-        self._text   = text
-        self._cmd    = command
-        self._r      = radius
-        self._w      = width
-        self._h      = height
+        self._bg      = bg
+        self._hover   = hover
+        self._fg      = fg
+        self._text    = text
+        self._cmd     = command
+        self._r       = radius
+        self._w       = width
+        self._h       = height
         self._enabled = True
-        self._draw(bg)
+
+        # Build canvas items ONCE — update via itemconfig, never delete/redraw
+        pts = self._poly_pts(1, 1, width-1, height-1, radius)
+        self._rect_id = self.create_polygon(pts, smooth=True,
+                                            fill=bg, outline="")
+        self._text_id = self.create_text(width//2, height//2,
+                                         text=text, fill=fg,
+                                         font=("Consolas", 10, "bold"))
+
         self.bind("<Enter>",    self._on_enter)
         self.bind("<Leave>",    self._on_leave)
         self.bind("<Button-1>", self._on_click)
 
-    def _round_rect(self, x1, y1, x2, y2, r, **kw):
-        pts = [x1+r, y1,  x2-r, y1,
-               x2,   y1,  x2,   y1+r,
-               x2,   y2-r, x2,  y2,
-               x2-r, y2,   x1+r, y2,
-               x1,   y2,   x1,   y2-r,
-               x1,   y1+r, x1,   y1]
-        return self.create_polygon(pts, smooth=True, **kw)
+    @staticmethod
+    def _poly_pts(x1, y1, x2, y2, r):
+        return [x1+r, y1,  x2-r, y1,
+                x2,   y1,  x2,   y1+r,
+                x2,   y2-r, x2,  y2,
+                x2-r, y2,   x1+r, y2,
+                x1,   y2,   x1,   y2-r,
+                x1,   y1+r, x1,   y1]
 
-    def _draw(self, colour):
-        self.delete("all")
-        self._round_rect(1, 1, self._w-1, self._h-1, self._r,
-                         fill=colour, outline="")
-        self.create_text(self._w//2, self._h//2, text=self._text,
-                         fill=self._fg, font=("Consolas", 10, "bold"))
+    def _set_color(self, colour):
+        self.itemconfig(self._rect_id, fill=colour)
 
     def _on_enter(self, _):
         if self._enabled:
-            self._draw(self._hover)
+            self._set_color(self._hover)
 
     def _on_leave(self, _):
         if self._enabled:
-            self._draw(self._bg)
+            self._set_color(self._bg)
 
     def set_enabled(self, state: bool):
         self._enabled = state
-        self._draw(self._bg if state else "#333655")
+        self._set_color(self._bg if state else "#333655")
+        self.itemconfig(self._text_id,
+                        fill=self._fg if state else TEXT_DIM)
 
     def _on_click(self, _):
         if self._enabled and self._cmd:
