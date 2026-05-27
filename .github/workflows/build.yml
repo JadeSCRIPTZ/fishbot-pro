@@ -1,0 +1,59 @@
+name: Build FishBot Pro EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pyautogui pillow pyinstaller
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller --onefile --windowed --name "FishBotPro" --icon=NONE fishing_macro.py
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(Get-Date -Format 'yyyy-MM-dd')" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0-${{ steps.date.outputs.date }}
+          name: "FishBot Pro — ${{ steps.date.outputs.date }}"
+          body: |
+            ## 🎣 FishBot Pro — Ready to Use!
+
+            ### ⬇️ Download
+            Click **FishBotPro.exe** below — no Python needed, just run it!
+
+            ### 🚀 How to use
+            1. Launch Minecraft and cast your rod
+            2. Run **FishBotPro.exe**
+            3. Click **Get Mouse Position** → hover over the bobber (3s countdown)
+            4. Click **Get Colour Under Mouse**
+            5. Press **▶ START MACRO**
+
+            ### ⚠️ Emergency stop
+            Move mouse to the **top-left corner** of screen to instantly stop the macro.
+          files: dist/FishBotPro.exe
+          draft: false
+          prerelease: false
