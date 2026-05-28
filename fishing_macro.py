@@ -290,32 +290,65 @@ class FishBotApp:
         return x, y, r, g, b, tol
 
     # ── Macro loop ─────────────────────────────────────────────
+    # State machine cu 2 stari:
+    #   "RESET" → asteapta ca pixelul sa NU mai fie culoarea tinta
+    #             (bobberul disparut / aruncat din nou)
+    #   "WATCH" → asteapta ca pixelul sa DEVINA culoarea tinta
+    #             (bobberul se scufunda = pesti!)
+    # Astfel nu poate triggera de doua ori pe acelasi eveniment.
     def _loop(self, x, y, tr, tg, tb, tol):
-        self._log("Macro pornit. Monitorizez pixelul…", "ok")
+        self._log("Macro pornit. Astept bobber nou…", "ok")
         catches = 0
+
+        # Pornim in RESET: asteptam mai intai ca pixelul sa nu fie match
+        # (in cazul in care il pornesti cu bobberul deja in apa)
+        state = "RESET"
+        self.root.after(0, self._log, "Stare: RESET — astept ca pixelul sa fie normal…", "dim")
+
         while self._running:
             try:
                 px = pyautogui.pixel(x, y)
                 cr, cg, cb = px[0], px[1], px[2]
-                if (abs(cr-tr) <= tol and
-                        abs(cg-tg) <= tol and
-                        abs(cb-tb) <= tol):
-                    catches += 1
-                    self.root.after(0, self._log,
-                        f"[#{catches}] Bobber scufundat! RGB({cr},{cg},{cb}) — trag…",
-                        "warn")
-                    pyautogui.rightClick()   # 1. Trage
-                    time.sleep(0.5)          # 2. Pauză 0.5s
-                    pyautogui.rightClick()   # 3. Aruncă din nou
-                    time.sleep(3.0)          # 4. Cooldown 3s
-                    self.root.after(0, self._log,
-                        f"[#{catches}] Re-aruncat. Monitorizez…", "ok")
+                is_match = (abs(cr - tr) <= tol and
+                            abs(cg - tg) <= tol and
+                            abs(cb - tb) <= tol)
+
+                if state == "RESET":
+                    # Asteptam ca pixelul sa NU mai fie culoarea tinta
+                    if not is_match:
+                        state = "WATCH"
+                        self.root.after(0, self._log,
+                            "Stare: WATCH — monitorizez bobberul…", "accent")
+
+                elif state == "WATCH":
+                    # Asteptam ca pixelul sa DEVINA culoarea tinta
+                    if is_match:
+                        catches += 1
+                        self.root.after(0, self._log,
+                            f"[#{catches}] Bobber scufundat! RGB({cr},{cg},{cb}) — trag…",
+                            "warn")
+
+                        # ── Secventa fishing ─────────────────────────
+                        pyautogui.rightClick()        # 1. Trage undita
+                        time.sleep(0.5)               # 2. Pauza 0.5s
+                        pyautogui.rightClick()        # 3. Arunca din nou
+                        time.sleep(3.0)               # 4. Cooldown 3s (bobber se asaza)
+                        # ─────────────────────────────────────────────
+
+                        self.root.after(0, self._log,
+                            f"[#{catches}] Re-aruncat. Astept resetare pixel…", "ok")
+
+                        # Dupa actiune ne intoarcem in RESET pentru a evita
+                        # re-triggerarea pe acelasi pixel (bug original)
+                        state = "RESET"
+
             except pyautogui.FailSafeException:
                 self.root.after(0, self._log, "FailSafe! Mouse în colț.", "error")
                 break
             except Exception as e:
                 self.root.after(0, self._log, f"Eroare: {e}", "error")
                 break
+
             time.sleep(self.POLL)
 
         self._running = False
